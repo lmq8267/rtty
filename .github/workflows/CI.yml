@@ -167,6 +167,7 @@ jobs:
           -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
           -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
           -DOPENSSL_FOUND=TRUE \
+          -DCMAKE_BUILD_TYPE=Release \
           -DOPENSSL_INCLUDE_DIR=/opt/openssl-${TARGET}/include \
           -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
