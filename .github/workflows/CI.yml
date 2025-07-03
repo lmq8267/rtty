@@ -218,7 +218,9 @@ jobs:
 
            带 **`ssl`** 后缀的表示集成`openssl`，支持`https`
            
-           [官方源码](https://github.com/zhaojh329/rtty)
+           [官方更新说明](https://github.com/zhaojh329/rttys/releases)
+
+           [服务端程序下载](https://github.com/lmq8267/rttys/releases)
            
           tag: ${{env.tag}}
           artifacts: bin/bin/*
