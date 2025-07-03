@@ -221,7 +221,7 @@ jobs:
            [官方源码](https://github.com/zhaojh329/rtty)
            
           tag: ${{env.tag}}
-          files: bin/bin/*
+          artifacts: bin/bin/*
           allowUpdates: true
           replacesArtifacts: true
 
