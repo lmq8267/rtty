@@ -210,7 +210,7 @@ jobs:
         path: bin/bin/
         
      - name: 发布Release
-       uses: softprops/action-gh-release@v2
+       uses: ncipollo/release-action@v1
        with:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
@@ -220,9 +220,10 @@ jobs:
            
            [官方源码](https://github.com/zhaojh329/rtty)
            
-          tag_name: ${{env.tag}}
+          tag: ${{env.tag}}
           files: bin/bin/*
-          overwrite: true
+          allowUpdates: true
+          replacesArtifacts: true
 
   keepalive-workflow:
     # github超过60天未提交将自动停止工作流
