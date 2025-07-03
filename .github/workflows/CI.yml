@@ -206,7 +206,7 @@ jobs:
          
      - uses: actions/upload-artifact@v4
        with:
-        name: rtty-${{ matrix.target }}
+        name: rtty-${{ matrix.target }}${{ matrix.ARCH_FLAG != '' && '-ssl' || '' }}
         path: bin/bin/
         
      - name: 发布Release
