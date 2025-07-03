@@ -38,54 +38,63 @@ jobs:
       matrix:
         include:
         - target: aarch64-linux-musl
-          os: ubuntu-latest
           URL: aarch64-linux-musl
           ARCH_FLAG: linux-aarch64
+        - target: aarch64-linux-musl
+          URL: aarch64-linux-musl
           
         - target: x86_64-linux-musl
-          os: ubuntu-latest
           URL: x86_64-linux-musl
           ARCH_FLAG: linux-x86_64
+        - target: x86_64-linux-musl
+          URL: x86_64-linux-musl
             
         - target: i686-linux-musl
-          os: ubuntu-latest
           URL: i686-linux-musl
           ARCH_FLAG: linux-generic32
+        - target: i686-linux-musl
+          URL: i686-linux-musl
         
         - target: armv7-linux-musleabihf
-          os: ubuntu-latest
           URL: armv7l-linux-musleabihf
           ARCH_FLAG: linux-armv4
+        - target: armv7-linux-musleabihf
+          URL: armv7l-linux-musleabihf
 
         - target: armv7-linux-musleabi
-          os: ubuntu-latest
           URL: armv7m-linux-musleabi
           ARCH_FLAG: linux-armv4
+        - target: armv7-linux-musleabi
+          URL: armv7m-linux-musleabi
           
         - target: arm-linux-musleabihf
-          os: ubuntu-latest
           URL: arm-linux-musleabihf
           ARCH_FLAG: linux-armv4
+        - target: arm-linux-musleabihf
+          URL: arm-linux-musleabihf
 
         - target: arm-linux-musleabi
-          os: ubuntu-latest
           URL: arm-linux-musleabi
           ARCH_FLAG: linux-armv4
+        - target: arm-linux-musleabi
+          URL: arm-linux-musleabi
 
         - target: mipsel-linux-musl
-          os: ubuntu-latest
           URL: mipsel-linux-muslsf
           ARCH_FLAG: linux-mips32
+        - target: mipsel-linux-musl
+          URL: mipsel-linux-muslsf
 
         - target: mips-linux-musl
-          os: ubuntu-latest
           URL: mips-linux-muslsf
           ARCH_FLAG: linux-mips32
+        - target: mips-linux-musl
+          URL: mips-linux-muslsf
     env:
       TARGET: ${{ matrix.target }}
       URL: ${{ matrix.URL }}
       OPENSSL_TARGET: ${{ matrix.ARCH_FLAG }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
      - name: Checkout code
        uses: actions/checkout@v4
@@ -128,7 +137,7 @@ jobs:
          echo "tag=${{ needs.check.outputs.ver }}" >> $GITHUB_ENV
          export CFLAGS="-ffunction-sections -fdata-sections -O2 -w $CFLAGS -I/opt/zlib-${TARGET}/include -I/opt/openssl-${TARGET}/include -I/opt/libev-${TARGET}/include"
          export LDFLAGS="-s $LDFLAGS -Wl,--gc-sections -L/opt/zlib-${TARGET}/lib -I/opt/openssl-${TARGET}/lib -I/opt/libev-${TARGET}/lib" 
-         if [ ! -d "/opt/openssl-${{ env.TARGET }}" ]; then
+         if [ ! -d "/opt/openssl-${{ env.TARGET }}" ] && [ ! -z "${{ env.OPENSSL_TARGET }}" ] ; then
            if [ ! -d "/opt/zlib-${TARGET}" ] || [ -z "$(find /opt/zlib-${TARGET}/lib -name '*.a' 2>/dev/null)" ] ; then
               #使用zlib-1.3.1版本
               wget https://www.zlib.net/zlib-1.3.1.tar.gz
@@ -161,6 +170,7 @@ jobs:
          fi
          echo "###########################编译RTTY########################"
          mkdir -p bin && cd bin
+         if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DUSE_OPENSSL=ON \
@@ -172,13 +182,26 @@ jobs:
           -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
+         else
+         cmake .. \
+          -DCMAKE_INSTALL_PREFIX=. \
+          -DSSL_SUPPORT=OFF \
+          -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
+          -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
+         fi
          make -j$(nproc)
          make install
          cd bin
          $STRIP rtty
          file rtty
          upx --lzma --best rtty
-         mv rtty rtty-${TARGET}
+         if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
+            mv rtty rtty-${TARGET}-ssl
+         else
+            mv rtty rtty-${TARGET}
+         fi
          echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
          
      - uses: actions/upload-artifact@v4
@@ -192,11 +215,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
            > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{env.tag}}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github) 
+
+           带 **`ssl`** 后缀的表示集成`openssl`，支持`https`
            
            [官方源码](https://github.com/zhaojh329/rtty)
            
           tag_name: ${{env.tag}}
-          files: bin/bin/rtty-${{ matrix.target }}
+          files: bin/bin/*
 
   keepalive-workflow:
     # github超过60天未提交将自动停止工作流
