@@ -221,7 +221,8 @@ jobs:
            [官方源码](https://github.com/zhaojh329/rtty)
            
           tag_name: ${{env.tag}}
-          files: bin/bin/
+          files: bin/bin/*
+          overwrite: true
 
   keepalive-workflow:
     # github超过60天未提交将自动停止工作流
