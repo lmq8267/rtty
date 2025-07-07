@@ -210,11 +210,11 @@ jobs:
         path: bin/bin/
         
      - name: 发布Release
-       uses: ncipollo/release-action@v1
+       uses: softprops/action-gh-release@v2
        with:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-           > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{env.tag}}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github) 
+           > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{ needs.check.outputs.ver }}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github) 
 
            带 **`ssl`** 后缀的表示集成`openssl`，支持`https`
             
@@ -222,10 +222,8 @@ jobs:
             
             [服务端程序下载](https://github.com/lmq8267/rttys/releases)
            
-          tag: ${{env.tag}}
-          artifacts: bin/bin/*
-          allowUpdates: true
-          replacesArtifacts: true
+          tag_name: ${{ needs.check.outputs.ver }}
+          files: bin/bin/*
 
   keepalive-workflow:
     # github超过60天未提交将自动停止工作流
