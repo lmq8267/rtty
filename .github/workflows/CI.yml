@@ -176,11 +176,9 @@ jobs:
          fi
          if [ ! -d "/opt/inih-${TARGET}" ] || [ -z "$(find /opt/inih-${TARGET}/lib -name '*.a' 2>/dev/null)" ]; then
             echo "###########################编译libinih依赖库########################"
-            # 获取最新 release 版本号
-            INIH_VER=$(curl -s https://api.github.com/repos/benhoyt/inih/releases/latest | jq -r '.tag_name')
-            wget -q "https://github.com/benhoyt/inih/archive/refs/tags/${INIH_VER}.tar.gz" -O inih.tar.gz
-            tar xf inih.tar.gz
-            cd inih-${INIH_VER#r}
+            wget -q "https://github.com/benhoyt/inih/archive/refs/tags/r62.tar.gz" -O inih-h-r62.tar.gz
+            tar xf inih-r62.tar.gz
+            cd inih-r62
             # 直接手动编译静态库，无需 meson，适合嵌入式交叉编译
             ${TARGET}-gcc -c -O2 -fPIC \
               -ffunction-sections -fdata-sections \
@@ -190,11 +188,11 @@ jobs:
             mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib/pkgconfig
             cp ini.h /opt/inih-${TARGET}/include/
             cp libinih.a /opt/inih-${TARGET}/lib/
+            cd ../
          fi
          echo "###########################编译RTTY########################"
          mkdir -p bin && cd bin
          if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
-         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DUSE_OPENSSL=ON \
@@ -207,7 +205,6 @@ jobs:
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
          else
-         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DSSL_SUPPORT=OFF \
