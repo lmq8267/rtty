@@ -127,6 +127,12 @@ jobs:
        with:
         path: /opt/libev-${{ matrix.target }}
         key: libev-${{ matrix.target }}-cache
+     - name: 缓存 libinih
+       id: cache-inih
+       uses: actions/cache@v4
+       with:
+        path: /opt/inih-${{ matrix.target }}
+        key: inih-${{ matrix.target }}-cache
      - name: 安装 UPX
        uses: crazy-max/ghaction-upx@v3
        with:
@@ -135,8 +141,8 @@ jobs:
      - name: 编译
        run: |
          echo "tag=${{ needs.check.outputs.ver }}" >> $GITHUB_ENV
-         export CFLAGS="-ffunction-sections -fdata-sections -O2 -w $CFLAGS -I/opt/zlib-${TARGET}/include -I/opt/openssl-${TARGET}/include -I/opt/libev-${TARGET}/include"
-         export LDFLAGS="-s $LDFLAGS -Wl,--gc-sections -L/opt/zlib-${TARGET}/lib -I/opt/openssl-${TARGET}/lib -I/opt/libev-${TARGET}/lib" 
+         export CFLAGS="-ffunction-sections -fdata-sections -O2 -w $CFLAGS -I/opt/zlib-${TARGET}/include -I/opt/openssl-${TARGET}/include -I/opt/libev-${TARGET}/include -I/opt/inih-${TARGET}/include"
+         export LDFLAGS="-s $LDFLAGS -Wl,--gc-sections -L/opt/zlib-${TARGET}/lib -I/opt/openssl-${TARGET}/lib -L/opt/libev-${TARGET}/lib -L/opt/inih-${TARGET}/lib" 
          if [ ! -d "/opt/openssl-${{ env.TARGET }}" ] && [ ! -z "${{ env.OPENSSL_TARGET }}" ] ; then
            if [ ! -d "/opt/zlib-${TARGET}" ] || [ -z "$(find /opt/zlib-${TARGET}/lib -name '*.a' 2>/dev/null)" ] ; then
               #使用zlib最新版本
@@ -168,9 +174,27 @@ jobs:
             make install
             cd ..
          fi
+         if [ ! -d "/opt/inih-${TARGET}" ] || [ -z "$(find /opt/inih-${TARGET}/lib -name '*.a' 2>/dev/null)" ]; then
+            echo "###########################编译libinih依赖库########################"
+            # 获取最新 release 版本号
+            INIH_VER=$(curl -s https://api.github.com/repos/benhoyt/inih/releases/latest | jq -r '.tag_name')
+            wget -q "https://github.com/benhoyt/inih/archive/refs/tags/${INIH_VER}.tar.gz" -O inih.tar.gz
+            tar xf inih.tar.gz
+            cd inih-${INIH_VER#r}
+            # 直接手动编译静态库，无需 meson，适合嵌入式交叉编译
+            ${TARGET}-gcc -c -O2 -fPIC \
+              -ffunction-sections -fdata-sections \
+              ini.c -o ini.o
+            ${TARGET}-ar rcs libinih.a ini.o
+            # 安装
+            mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib/pkgconfig
+            cp ini.h /opt/inih-${TARGET}/include/
+            cp libinih.a /opt/inih-${TARGET}/lib/
+         fi
          echo "###########################编译RTTY########################"
          mkdir -p bin && cd bin
          if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
+         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DUSE_OPENSSL=ON \
@@ -183,6 +207,7 @@ jobs:
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
          else
+         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DSSL_SUPPORT=OFF \
@@ -234,16 +259,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      #- uses: gautamkrishnar/keepalive-workflow@v2
-        #with:
-          #use_api: true
       - name: 检查上次提交日期
         id: check_commit_date
         run: |
-          # 获取上次提交日期（格式：YYYY-MM-DD）
           LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short)
           echo "上次提交日期: $LAST_COMMIT_DATE"
-          # 计算当前日期和上次提交日期的差值（单位：天）
           LAST_COMMIT_TIMESTAMP=$(date -d "$LAST_COMMIT_DATE" +%s)
           CURRENT_TIMESTAMP=$(date +%s)
           DIFF_DAYS=$(( (CURRENT_TIMESTAMP - LAST_COMMIT_TIMESTAMP) / 86400 ))
@@ -254,6 +274,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # 创建空提交
           git commit --allow-empty -m "自动空提交，保持仓库活跃"
           git push
