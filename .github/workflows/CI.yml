@@ -217,6 +217,8 @@ jobs:
           -DOPENSSL_INCLUDE_DIR=/opt/openssl-${TARGET}/include \
           -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
+          -Dinih_INCLUDE_DIRS="/opt/inih-${TARGET}/include" \
+          -Dinih_LIBRARIES="/opt/inih-${TARGET}/lib/libinih.a" \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
          else
          PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
@@ -225,6 +227,8 @@ jobs:
           -DSSL_SUPPORT=OFF \
           -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
           -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
+          -Dinih_INCLUDE_DIRS="/opt/inih-${TARGET}/include" \
+          -Dinih_LIBRARIES="/opt/inih-${TARGET}/lib/libinih.a" \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
          fi
