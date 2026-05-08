@@ -188,11 +188,25 @@ jobs:
             mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib
             cp ini.h /opt/inih-${TARGET}/include/
             cp libinih.a /opt/inih-${TARGET}/lib/
+            mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib/pkgconfig
+            cp ini.h /opt/inih-${TARGET}/include/
+            cp libinih.a /opt/inih-${TARGET}/lib/
+            echo "prefix=/opt/inih-${TARGET}"                    > /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "exec_prefix=\${prefix}"                       >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "libdir=\${exec_prefix}/lib"                   >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "includedir=\${prefix}/include"                >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo ""                                             >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "Name: inih"                                   >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "Description: Simple INI file parser"         >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "Version: 62"                                  >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "Libs: -L\${libdir} -linih"                   >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
+            echo "Cflags: -I\${includedir}"                    >> /opt/inih-${TARGET}/lib/pkgconfig/inih.pc
             cd ../
          fi
          echo "###########################编译RTTY########################"
          mkdir -p bin && cd bin
          if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
+         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DUSE_OPENSSL=ON \
@@ -205,6 +219,7 @@ jobs:
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
           -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s"
          else
+         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DSSL_SUPPORT=OFF \
