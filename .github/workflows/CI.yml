@@ -142,7 +142,7 @@ jobs:
        run: |
          echo "tag=${{ needs.check.outputs.ver }}" >> $GITHUB_ENV
          export CFLAGS="-ffunction-sections -fdata-sections -O2 -w $CFLAGS -I/opt/zlib-${TARGET}/include -I/opt/openssl-${TARGET}/include -I/opt/libev-${TARGET}/include -I/opt/inih-${TARGET}/include"
-         export LDFLAGS="-s $LDFLAGS -Wl,--gc-sections -L/opt/zlib-${TARGET}/lib -I/opt/openssl-${TARGET}/lib -L/opt/libev-${TARGET}/lib -L/opt/inih-${TARGET}/lib" 
+         export LDFLAGS="-s $LDFLAGS -Wl,--gc-sections -L/opt/zlib-${TARGET}/lib -L/opt/openssl-${TARGET}/lib -L/opt/libev-${TARGET}/lib -L/opt/inih-${TARGET}/lib" 
          if [ ! -d "/opt/openssl-${{ env.TARGET }}" ] && [ ! -z "${{ env.OPENSSL_TARGET }}" ] ; then
            if [ ! -d "/opt/zlib-${TARGET}" ] || [ -z "$(find /opt/zlib-${TARGET}/lib -name '*.a' 2>/dev/null)" ] ; then
               #使用zlib-1.3.2版本
@@ -184,6 +184,7 @@ jobs:
               -ffunction-sections -fdata-sections \
               ini.c -o ini.o
             ${AR} rcs libinih.a ini.o
+            file libinih.a || true
             # 安装
             mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib
             cp ini.h /opt/inih-${TARGET}/include/
@@ -214,23 +215,21 @@ jobs:
           -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
           -DOPENSSL_FOUND=TRUE \
           -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_FLAGS="$CFLAGS" \
           -DOPENSSL_INCLUDE_DIR=/opt/openssl-${TARGET}/include \
           -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
           -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
-          -Dinih_INCLUDE_DIRS="/opt/inih-${TARGET}/include" \
-          -Dinih_LIBRARIES="/opt/inih-${TARGET}/lib/libinih.a" \
-          -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s /opt/inih-${TARGET}/lib/libinih.a"
+          -DCMAKE_EXE_LINKER_FLAGS="-L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
          else
          PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
          cmake .. \
           -DCMAKE_INSTALL_PREFIX=. \
           -DSSL_SUPPORT=OFF \
+          -DCMAKE_C_FLAGS="$CFLAGS" \
           -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
           -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
-          -Dinih_INCLUDE_DIRS="/opt/inih-${TARGET}/include" \
-          -Dinih_LIBRARIES="/opt/inih-${TARGET}/lib/libinih.a" \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--gc-sections -s /opt/inih-${TARGET}/lib/libinih.a"
+          -DCMAKE_EXE_LINKER_FLAGS="-L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
          fi
          make -j$(nproc)
          make install
