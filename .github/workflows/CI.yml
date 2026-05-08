@@ -180,12 +180,12 @@ jobs:
             tar xf inih-r62.tar.gz
             cd inih-r62
             # 直接手动编译静态库，无需 meson，适合嵌入式交叉编译
-            ${TARGET}-gcc -c -O2 -fPIC \
+            ${CC} -c -O2 -fPIC \
               -ffunction-sections -fdata-sections \
               ini.c -o ini.o
-            ${TARGET}-ar rcs libinih.a ini.o
+            ${AR} rcs libinih.a ini.o
             # 安装
-            mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib/pkgconfig
+            mkdir -p /opt/inih-${TARGET}/include /opt/inih-${TARGET}/lib
             cp ini.h /opt/inih-${TARGET}/include/
             cp libinih.a /opt/inih-${TARGET}/lib/
             cd ../
