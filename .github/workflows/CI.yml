@@ -1,7 +1,7 @@
 name: 编译rtty
 on:
   schedule:
-    - cron: '0 3,20 * * *'
+    - cron: '0 3 * * *'
   workflow_dispatch:
   
 env:
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
      - name: Checkout code
-       uses: actions/checkout@v4
+       uses: actions/checkout@main
        with:
         repository: zhaojh329/rtty
         ref: ${{ needs.check.outputs.ver }}
@@ -110,31 +110,31 @@ jobs:
         gccpath: /tmp
      - name: 缓存 zlib
        id: cache-zlib
-       uses: actions/cache@v4
+       uses: actions/cache@main
        with:
         path: |
           /opt/zlib-${{ matrix.target }}
         key: zlib-${{ matrix.target }}-cache
      - name: 缓存 OpenSSL 
        id: cache-openssl
-       uses: actions/cache@v4
+       uses: actions/cache@main
        with:
         path: /opt/openssl-${{ env.TARGET }}
         key: openssl-${{ env.TARGET }}-cache
      - name: 缓存 libev
        id: cache-libev
-       uses: actions/cache@v4
+       uses: actions/cache@main
        with:
         path: /opt/libev-${{ matrix.target }}
         key: libev-${{ matrix.target }}-cache
      - name: 缓存 libinih
        id: cache-inih
-       uses: actions/cache@v4
+       uses: actions/cache@main
        with:
         path: /opt/inih-${{ matrix.target }}
         key: inih-${{ matrix.target }}-cache
      - name: 安装 UPX
-       uses: crazy-max/ghaction-upx@v3
+       uses: crazy-max/ghaction-upx@master
        with:
         version: v4.2.4
         install-only: true
@@ -206,30 +206,46 @@ jobs:
          fi
          echo "###########################编译RTTY########################"
          mkdir -p bin && cd bin
+         # 只允许 pkg-config 在交叉编译出来的依赖库中查找，禁止回退到宿主机的 .pc 文件。
+         # 新版 rtty 的 ssl 子模块会优先使用 pkg_check_modules(OPENSSL openssl)，
+         # 若不加限制会命中宿主机的 /usr/lib/x86_64-linux-gnu/pkgconfig/openssl.pc，
+         # 从而链接 x86_64 的 libssl.a，报错: file format not recognized
+         export PKG_CONFIG_LIBDIR="/opt/openssl-${TARGET}/lib/pkgconfig:/opt/inih-${TARGET}/lib/pkgconfig:/opt/libev-${TARGET}/lib/pkgconfig:/opt/zlib-${TARGET}/lib/pkgconfig"
+         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
          if [ -n "${{ env.OPENSSL_TARGET }}" ]; then
-         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
-         cmake .. \
-          -DCMAKE_INSTALL_PREFIX=. \
-          -DUSE_OPENSSL=ON \
-          -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
-          -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
-          -DOPENSSL_FOUND=TRUE \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_FLAGS="$CFLAGS" \
-          -DOPENSSL_INCLUDE_DIR=/opt/openssl-${TARGET}/include \
-          -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
-          -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
-          -DCMAKE_EXE_LINKER_FLAGS="-L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
+            # 编译前校验 pkg-config 解析到的 OpenSSL 必须是交叉编译产物
+            if [ -f "/opt/openssl-${TARGET}/lib/pkgconfig/openssl.pc" ] && command -v pkg-config >/dev/null 2>&1 ; then
+               OPENSSL_PC_PREFIX="$(pkg-config --variable=prefix openssl 2>/dev/null || true)"
+               echo "pkg-config 解析到的 OpenSSL 前缀: ${OPENSSL_PC_PREFIX}"
+               echo "pkg-config 解析到的 OpenSSL 链接参数: $(pkg-config --libs openssl 2>/dev/null || true)"
+               [ "${OPENSSL_PC_PREFIX}" = "/opt/openssl-${TARGET}" ] || { echo "错误: pkg-config 解析到的 OpenSSL 不是交叉编译产物，停止编译"; exit 1; }
+            else
+               echo "警告: 未找到 openssl.pc，回退到 find_package(OpenSSL)"
+               [ -f "/opt/openssl-${TARGET}/lib/libssl.a" ] || { echo "错误: 缺少交叉编译出来的 OpenSSL 静态库"; exit 1; }
+            fi
+            cmake .. \
+             -DCMAKE_INSTALL_PREFIX=. \
+             -DUSE_OPENSSL=ON \
+             -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
+             -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
+             -DOPENSSL_FOUND=TRUE \
+             -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_C_FLAGS="$CFLAGS" \
+             -DOPENSSL_INCLUDE_DIR=/opt/openssl-${TARGET}/include \
+             -DOPENSSL_INCLUDE_DIRS="/opt/openssl-${TARGET}/include" \
+             -DOPENSSL_LIBRARIES="/opt/openssl-${TARGET}/lib/libssl.a;/opt/openssl-${TARGET}/lib/libcrypto.a" \
+             -DOPENSSL_SSL_LIBRARY=/opt/openssl-${TARGET}/lib/libssl.a \
+             -DOPENSSL_CRYPTO_LIBRARY=/opt/openssl-${TARGET}/lib/libcrypto.a \
+             -DCMAKE_EXE_LINKER_FLAGS="-L/opt/openssl-${TARGET}/lib -L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
          else
-         PKG_CONFIG_PATH="/opt/inih-${TARGET}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
-         cmake .. \
-          -DCMAKE_INSTALL_PREFIX=. \
-          -DSSL_SUPPORT=OFF \
-          -DCMAKE_C_FLAGS="$CFLAGS" \
-          -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
-          -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_EXE_LINKER_FLAGS="-L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
+            cmake .. \
+             -DCMAKE_INSTALL_PREFIX=. \
+             -DSSL_SUPPORT=OFF \
+             -DCMAKE_C_FLAGS="$CFLAGS" \
+             -DLIBEV_INCLUDE_DIR=/opt/libev-${TARGET}/include \
+             -DLIBEV_LIBRARY=/opt/libev-${TARGET}/lib/libev.a \
+             -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_EXE_LINKER_FLAGS="-L/opt/inih-${TARGET}/lib -linih -static -Wl,--gc-sections -s"
          fi
          make -j$(nproc)
          make install
@@ -244,13 +260,13 @@ jobs:
          fi
          echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
          
-     - uses: actions/upload-artifact@v4
+     - uses: actions/upload-artifact@main
        with:
         name: rtty-${{ matrix.target }}${{ matrix.ARCH_FLAG != '' && '-ssl' || '' }}
         path: bin/bin/
         
      - name: 发布Release
-       uses: softprops/action-gh-release@v2
+       uses: lmq8267/action-gh-release@master
        with:
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
@@ -258,6 +274,18 @@ jobs:
 
            带 **`ssl`** 后缀的表示集成`openssl`，支持`https`
             
+           | 平台架构 | 集成SSL（支持https） | 未集成SSL（不支持https） |
+           | :---: | :--- | :--- |
+           | aarch64-linux-musl | [rtty-aarch64-linux-musl-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-aarch64-linux-musl-ssl) | [rtty-aarch64-linux-musl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-aarch64-linux-musl) |
+           | x86_64-linux-musl | [rtty-x86_64-linux-musl-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-x86_64-linux-musl-ssl) | [rtty-x86_64-linux-musl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-x86_64-linux-musl) |
+           | i686-linux-musl | [rtty-i686-linux-musl-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-i686-linux-musl-ssl) | [rtty-i686-linux-musl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-i686-linux-musl) |
+           | armv7-linux-musleabihf | [rtty-armv7-linux-musleabihf-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-armv7-linux-musleabihf-ssl) | [rtty-armv7-linux-musleabihf](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-armv7-linux-musleabihf) |
+           | armv7-linux-musleabi | [rtty-armv7-linux-musleabi-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-armv7-linux-musleabi-ssl) | [rtty-armv7-linux-musleabi](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-armv7-linux-musleabi) |
+           | arm-linux-musleabihf | [rtty-arm-linux-musleabihf-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-arm-linux-musleabihf-ssl) | [rtty-arm-linux-musleabihf](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-arm-linux-musleabihf) |
+           | arm-linux-musleabi | [rtty-arm-linux-musleabi-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-arm-linux-musleabi-ssl) | [rtty-arm-linux-musleabi](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-arm-linux-musleabi) |
+           | mipsel-linux-musl | [rtty-mipsel-linux-musl-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-mipsel-linux-musl-ssl) | [rtty-mipsel-linux-musl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-mipsel-linux-musl) |
+           | mips-linux-musl | [rtty-mips-linux-musl-ssl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-mips-linux-musl-ssl) | [rtty-mips-linux-musl](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/rtty-mips-linux-musl) |
+
             [官方更新说明](https://github.com/zhaojh329/rtty/releases)
             
             [服务端程序下载](https://github.com/lmq8267/rttys/releases)
@@ -273,7 +301,7 @@ jobs:
       actions: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       - name: 检查上次提交日期
         id: check_commit_date
         run: |
